@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isPasswordConfigured } from "@/lib/auth";
 import { loginAction } from "@/lib/auth-actions";
 
 export default async function LoginPage({
@@ -10,6 +11,19 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = params.next ?? "/";
   const hasError = params.error === "1";
+
+  if (!isPasswordConfigured()) {
+    return (
+      <div className="flex justify-center pt-16">
+        <div className="grid w-full max-w-sm gap-2 rounded-xl border bg-card p-6 text-center">
+          <h1 className="text-lg font-bold">ログインの準備ができていません</h1>
+          <p className="text-sm text-muted-foreground">
+            サーバーにパスワード（VOCAB_PASSWORD）が設定されていません。設定後に再デプロイしてください。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-center pt-16">

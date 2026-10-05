@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { AUTH_COOKIE, checkPassword, signSession } from "@/lib/auth";
+import { AUTH_COOKIE, checkPassword, isPasswordConfigured, signSession } from "@/lib/auth";
 
 /** 同一オリジン内のパスだけを戻り先として許可する */
 function safeNext(value: string): string {
@@ -12,6 +12,10 @@ function safeNext(value: string): string {
 export async function loginAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const next = safeNext(String(formData.get("next") ?? "/"));
+
+  if (!isPasswordConfigured()) {
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   if (!checkPassword(password)) {
     redirect(`/login?error=1&next=${encodeURIComponent(next)}`);

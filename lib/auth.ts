@@ -8,10 +8,13 @@ function getSecret(): string {
   return secret;
 }
 
+export function isPasswordConfigured(): boolean {
+  return Boolean(process.env.VOCAB_PASSWORD && process.env.VOCAB_AUTH_SECRET);
+}
+
 export function checkPassword(input: string): boolean {
   const password = process.env.VOCAB_PASSWORD;
-  if (!password) throw new Error("VOCAB_PASSWORD is not set");
-  return safeEqual(input, password);
+  return Boolean(password) && safeEqual(input, password!);
 }
 
 export function signSession(): string {
