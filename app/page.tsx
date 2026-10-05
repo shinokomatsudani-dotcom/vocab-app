@@ -7,7 +7,7 @@ import { CategoryBadge, CategoryDot } from "@/components/category-badge";
 import { WordEditorDialog } from "@/components/word-editor-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useHydrated, useWords } from "@/hooks/use-words";
+import { useWords, useWordsLoaded } from "@/hooks/use-words";
 import { countByCategory } from "@/lib/test-plan";
 import { CATEGORIES, CATEGORY_SHORT_LABEL, type Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ const collator = new Intl.Collator("ja", {
 
 export default function WordListPage() {
   const words = useWords();
-  const hydrated = useHydrated();
+  const loaded = useWordsLoaded();
   const [term, setTerm] = useState("");
   const [meaning, setMeaning] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -112,7 +112,11 @@ export default function WordListPage() {
         </Button>
       </form>
 
-      {hydrated && words.length === 0 ? (
+      {!loaded ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          読み込み中…
+        </p>
+      ) : words.length === 0 ? (
         <div className="grid justify-items-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center">
           <p className="font-medium">まだ単語がありません</p>
           <p className="text-sm text-muted-foreground">

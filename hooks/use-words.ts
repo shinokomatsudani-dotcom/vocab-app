@@ -11,14 +11,11 @@ export function useWords() {
   );
 }
 
-export function useHydrated() {
+/** DB からの初回読み込みが終わったか */
+export function useWordsLoaded() {
   return useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false
+    wordStore.subscribe,
+    wordStore.getLoaded,
+    wordStore.getServerLoaded
   );
-}
-
-function noopSubscribe() {
-  return () => {};
 }

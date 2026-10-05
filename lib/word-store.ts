@@ -1,50 +1,52 @@
+import { toast } from "sonner";
+import { deleteWordAction, listWordsAction, saveWordsAction } from "@/lib/word-actions";
 import type { Category, Meaning, Word } from "@/lib/types";
 
-const STORAGE_KEY = "vocab-app:words";
+// 画面は手元の状態を即座に書き換え（楽観的更新）、裏で DB に保存する。
+// 保存に失敗したら DB から読み直して手元の状態を正に戻す。
 
 type Listener = () => void;
 
 let words: Word[] = [];
-let hydrated = false;
+let status: "idle" | "loading" | "ready" | "error" = "idle";
 const listeners = new Set<Listener>();
 const EMPTY: Word[] = [];
 
-function readFromStorage(): Word[] {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Word[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persist() {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
-  } catch {
-    // ストレージが使えない環境ではメモリ上だけで動かす
-  }
+function notify() {
+  listeners.forEach((listener) => listener());
 }
 
 function commit(next: Word[]) {
   words = next;
-  persist();
-  listeners.forEach((listener) => listener());
+  notify();
 }
 
-function ensureHydrated() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  words = readFromStorage();
+async function load() {
+  status = "loading";
+  try {
+    words = await listWordsAction();
+    status = "ready";
+  } catch {
+    status = "error";
+    toast.error("単語を読み込めませんでした");
+  }
+  notify();
+}
+
+function sync(task: Promise<unknown>) {
+  task.catch(() => {
+    toast.error("保存に失敗しました。最新の状態を読み込み直します");
+    void load();
+  });
 }
 
 export function subscribe(listener: Listener) {
   listeners.add(listener);
+  if (status === "idle" && typeof window !== "undefined") void load();
   return () => listeners.delete(listener);
 }
 
 export function getSnapshot(): Word[] {
-  ensureHydrated();
   return words;
 }
 
@@ -52,12 +54,19 @@ export function getServerSnapshot(): Word[] {
   return EMPTY;
 }
 
+export function getLoaded(): boolean {
+  return status === "ready";
+}
+
+export function getServerLoaded(): boolean {
+  return false;
+}
+
 export function newMeaning(text: string): Meaning {
   return { id: crypto.randomUUID(), text };
 }
 
 export function addWord(term: string, meaningText: string): Word {
-  ensureHydrated();
   const now = new Date().toISOString();
   const word: Word = {
     id: crypto.randomUUID(),
@@ -68,6 +77,7 @@ export function addWord(term: string, meaningText: string): Word {
     updatedAt: now,
   };
   commit([word, ...words]);
+  sync(saveWordsAction([word]));
   return word;
 }
 
@@ -75,14 +85,11 @@ export function updateWord(
   id: string,
   patch: Partial<Pick<Word, "term" | "meanings" | "category">>
 ) {
-  ensureHydrated();
-  commit(
-    words.map((word) =>
-      word.id === id
-        ? { ...word, ...patch, updatedAt: new Date().toISOString() }
-        : word
-    )
-  );
+  const current = words.find((word) => word.id === id);
+  if (!current) return;
+  const updated: Word = { ...current, ...patch, updatedAt: new Date().toISOString() };
+  commit(words.map((word) => (word.id === id ? updated : word)));
+  sync(saveWordsAction([updated]));
 }
 
 export function setCategory(id: string, category: Category) {
@@ -90,8 +97,8 @@ export function setCategory(id: string, category: Category) {
 }
 
 export function deleteWord(id: string) {
-  ensureHydrated();
   commit(words.filter((word) => word.id !== id));
+  sync(deleteWordAction(id));
 }
 
 const SAMPLE: [string, string[], Category][] = [
@@ -111,7 +118,6 @@ const SAMPLE: [string, string[], Category][] = [
 ];
 
 export function addSampleWords() {
-  ensureHydrated();
   const now = Date.now();
   const samples: Word[] = SAMPLE.map(([term, meanings, category], i) => {
     const at = new Date(now - i * 1000).toISOString();
@@ -125,4 +131,5 @@ export function addSampleWords() {
     };
   });
   commit([...samples, ...words]);
+  sync(saveWordsAction(samples));
 }
